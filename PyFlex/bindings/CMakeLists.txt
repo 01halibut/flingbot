@@ -1,8 +1,13 @@
 cmake_minimum_required(VERSION 3.5)
 project(PyFleX)
 
+set_property(GLOBAL PROPERTY FIND_LIBRARY_USE_LIB64_PATHS ON)
+
+include(FindOpenGL)
+
 find_package(CUDA 9.0 REQUIRED)
 find_package(pybind11 REQUIRED)
+
 
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -MMD -m64 -Wall -std=c++0x")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -D_FORCE_INLINES -fPIC -fpermissive -fno-strict-aliasing -O3")

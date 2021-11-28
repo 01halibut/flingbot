@@ -1135,7 +1135,11 @@ std::tuple<py::array_t<unsigned char>, py::array_t<float>> pyflex_render()
 PYBIND11_MODULE(pyflex, m)
 {
     m.def("main", &main);
-    m.def("init", &pyflex_init);
+    m.def("init", &pyflex_init, "Initialize",
+	      py::arg("headless") = false,
+          py::arg("render") = true,
+          py::arg("camera_width") = 720,
+          py::arg("camera_height") = 720);
     m.def("set_scene", &pyflex_set_scene,
           py::arg("scene_idx") = 0,
           py::arg("scene_params") = py::array_t<float>(),

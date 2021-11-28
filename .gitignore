@@ -136,3 +136,11 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
+runs/Nov28_10-09-48_pusong-16/events.out.tfevents.1638115788.pusong-16
+
+
+# pytorch
+*.pth
+
+# runs
+runs/*
