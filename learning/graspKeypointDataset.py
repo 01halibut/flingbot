@@ -35,12 +35,15 @@ class GraspKeypointDataset(torch.utils.data.Dataset):
         with h5py.File(self.hdf5_path, "r") as dataset:
             keys = []
             for k in dataset:
-                try:
-                    group = dataset[k]
-                    if self.filter_fn is None or self.filter_fn(group):
-                        keys.append((k, self.__make_key_pair(k)))
-                except:
-                    pass
+                group = dataset[k]
+                prev = self.__make_key_pair(k)
+                if (prev != None
+                    and 'fling_height' in group.attrs.keys()
+                    and 'fling_speed' in group.attrs.keys()
+                    and 'fling_lower_speed' in group.attrs.keys()
+                    and 'fling_end_slack' in group.attrs.keys()
+                ):
+                    keys.append((k, prev))
             return keys
 
     def __len__(self):
@@ -83,17 +86,5 @@ class GraspKeypointDataset(torch.utils.data.Dataset):
             )
 
             reward = torch.tensor(reward).float()
-            if not self.is_fling_speed:
-                obs = torch.tensor(group['observations'])
-                action = torch.tensor(group['actions']).bool()
-            else:
-                obs = torch.tensor(group['fling_observations']).squeeze()
-                action = torch.tensor(group.attrs['fling_speed']).bool()
-
-            if self.rgb_only:
-                obs = obs[:3, :, :]
-                obs[:3, ...] = self.rgb_transform(obs[:3, ...])
-            elif self.depth_only:
-                obs = obs[3, :, :].unsqueeze(dim=0)
 
             return (obs, action, reward)
