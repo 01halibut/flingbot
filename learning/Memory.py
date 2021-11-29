@@ -10,9 +10,15 @@ class Memory:
     log = False
     base_keys = [
         'observations',
+        'state',
         'actions',
         'rewards',
         'is_terminal',
+        'fling_height',
+        'fling_speed',
+        'fling_lower_speed',
+        'fling_sep_dist',
+        'fling_end_slack'
     ]
 
     def __init__(self, memory_fields=[]):
@@ -66,6 +72,12 @@ class Memory:
             == len(self.data['actions'])\
             == len(self.data['observations'])
         self.data['observations'].append(deepcopy(observation))
+    
+    def add_post_state(self, state):
+        assert len(self.data['actions'])\
+            == len(self.data['observations'])\
+            == len(self.data['state']) + 1
+        self.data['state'].append(deepcopy(state))
 
     def add_action(self, action):
         assert len(self.data['rewards']) \
@@ -99,6 +111,7 @@ class Memory:
             assert len(self.data['max_coverage']) == count
             assert len(self.data['preaction_coverage']) == count
             assert len(self.data['postaction_coverage']) == count
+            assert len(self.data['state']) == count
             return True
         except:
             return False

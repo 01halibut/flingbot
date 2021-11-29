@@ -54,6 +54,7 @@ class SimEnv:
                  render_dim=400,
                  particle_radius=0.00625,
                  render_engine='opengl',
+                 n_keypoints=20,
                  **kwargs):
         # environment state variables
         self.grasp_states = [False, False]
@@ -114,6 +115,9 @@ class SimEnv:
             'drag': self.pick_and_drag_primitive,
             'place': self.pick_and_place_primitive
         }
+
+        # keypoints
+        self.n_keypoints = n_keypoints
 
     def step_simulation(self):
         pyflex.step()
@@ -260,18 +264,34 @@ class SimEnv:
         return retval
 
     def fling_primitive(self, dist, fling_height, fling_speed):
+        fling_speed = np.random.uniform(1e-3, 1e-2)
+        fling_height = np.random.uniform(0.5, 1) * fling_height
+        fling_start = -0.2
+        fling_end = 0.2
+        fling_tail_delta = 0.05
+        fling_lower_speed = np.random.uniform(1e-3, 2e-2)
+        fling_tail_speed = 0.5 * fling_lower_speed
+        fling_end_height = 2 * self.grasp_height
+        fling_end_slack = np.random.uniform(0.8, 1)
+
+        self.episode_memory.add_value('fling_height', fling_height)
+        self.episode_memory.add_value('fling_speed', fling_speed)
+        self.episode_memory.add_value('fling_lower_speed', fling_lower_speed)
+        self.episode_memory.add_value('fling_sep_dist', dist)
+        self.episode_memory.add_value('fling_end_slack', fling_end_slack)
         # fling
-        self.movep([[dist/2, fling_height, -0.2],
-                    [-dist/2, fling_height, -0.2]], speed=fling_speed)
-        self.movep([[dist/2, fling_height, 0.2],
-                    [-dist/2, fling_height, 0.2]], speed=fling_speed)
-        self.movep([[dist/2, fling_height, 0.2],
-                    [-dist/2, fling_height, 0.2]], speed=1e-2, min_steps=4)
+        self.movep([[dist/2, fling_height, fling_start],
+                    [-dist/2, fling_height, fling_start]], speed=fling_speed)
+        self.movep([[dist/2, fling_height, fling_end],
+                    [-dist/2, fling_height, fling_end]], speed=fling_speed)
+        self.movep([[dist/2, fling_height, fling_end],
+                    [-dist/2, fling_height, fling_end]], speed=1e-2, min_steps=4)
         # lower
-        self.movep([[dist/2, self.grasp_height*2, -0.2],
-                    [-dist/2, self.grasp_height*2, -0.2]], speed=1e-2)
-        self.movep([[dist/2, self.grasp_height*2, -0.25],
-                    [-dist/2, self.grasp_height*2, -0.25]], speed=5e-3)
+        self.movep([[dist/2 * fling_end_slack, fling_end_height, fling_start],
+                    [-dist/2 * fling_end_slack, fling_end_height, fling_start]], speed=fling_lower_speed)
+        self.movep([[dist/2 * fling_end_slack, fling_end_height, fling_start - fling_tail_delta],
+                    [-dist/2 * fling_end_slack, fling_end_height, fling_start - fling_tail_delta]],
+                    speed=fling_tail_speed)
         # release
         self.set_grasp(False)
         if self.dump_visualizations:
@@ -488,6 +508,9 @@ class SimEnv:
         if action_primitive is not None and action is not None:
             self.action_handlers[action_primitive](**action)
         self.postaction()
+
+        self.episode_memory.add_post_state(
+            pyflex.get_positions().reshape(-1, 4)[:, :3])
 
         # Log stats after perform actions
         curr_coverage = self.compute_coverage()
