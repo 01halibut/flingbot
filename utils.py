@@ -2,6 +2,7 @@ from argparse import ArgumentParser
 from environment import SimEnv, TaskLoader
 from learning.nets import MaximumValuePolicy
 from learning.utils import GraspDataset
+from learning.graspKeypointDataset import GraspKeypointDataset
 from environment.utils import plot_before_after
 from torch.utils.data import DataLoader
 from filelock import FileLock
@@ -160,12 +161,13 @@ def setup_envs(dataset, num_processes=16, **kwargs):
 def get_loader(batch_size=256,
                num_workers=4,
                **kwargs):
-    try:
-        dataset = GraspDataset(**kwargs)
-    except:
-        dataset = GraspDataset(
-            check_validity=True,
-            **kwargs)
+    # try:
+    #     dataset = GraspDataset(**kwargs)
+    # except:
+    #     dataset = GraspDataset(
+    #         check_validity=True,
+    #         **kwargs)
+    dataset = GraspKeypointDataset(**kwargs)
     if len(dataset) < batch_size:
         return None
     return DataLoader(

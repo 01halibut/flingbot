@@ -13,12 +13,35 @@ import pickle
 import os
 
 
+# def optimize(value_net_key, value_net, optimizer, loader,
+#              criterion, writer, num_updates):
+#     if loader is None or optimizer is None:
+#         return
+#     device = value_net.device
+#     for _, (obs, action_mask, label) in zip(range(num_updates), loader):
+#         value_pred_dense = value_net(obs.to(device, non_blocking=True))
+#         value_pred = torch.masked_select(
+#             value_pred_dense.squeeze(),
+#             action_mask.to(device, non_blocking=True))
+#         loss = criterion(value_pred, label.to(device, non_blocking=True))
+#         optimizer.zero_grad()
+#         loss.backward()
+#         optimizer.step()
+#         value_net.steps += 1
+#         writer.add_scalar(
+#             f'loss/{value_net_key}',
+#             loss.cpu().item(),
+#             global_step=value_net.steps)
+
 def optimize(value_net_key, value_net, optimizer, loader,
              criterion, writer, num_updates):
     if loader is None or optimizer is None:
         return
     device = value_net.device
     for _, (obs, action_mask, label) in zip(range(num_updates), loader):
+        obs, kp, kp_prev, action_prev = obs
+        action_mask, fling_height, fling_speed, fling_lower_speed, fling_end_slack = action_mask
+        
         value_pred_dense = value_net(obs.to(device, non_blocking=True))
         value_pred = torch.masked_select(
             value_pred_dense.squeeze(),
