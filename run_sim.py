@@ -80,15 +80,15 @@ if __name__ == '__main__':
     dataset_size = get_dataset_size(dataset_path)
     i = dataset_size
     while(True):
-        # with torch.no_grad():
-        #     ready_envs, observations, remaining_observations =\
-        #         step_env(
-        #             all_envs=envs,
-        #             ready_envs=ready_envs,
-        #             ready_actions=policy.act(observations),
-        #             remaining_observations=remaining_observations)
-        #     if i > args.warmup:
-        #         policy.decay_exploration()
+        with torch.no_grad():
+            ready_envs, observations, remaining_observations =\
+                step_env(
+                    all_envs=envs,
+                    ready_envs=ready_envs,
+                    ready_actions=policy.act(observations),
+                    remaining_observations=remaining_observations)
+            if i > args.warmup:
+                policy.decay_exploration()
         if optimizer is not None and dataset_size > args.warmup:
             if i % args.update_frequency == 0:
                 policy.train()
