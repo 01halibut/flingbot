@@ -158,12 +158,13 @@ class MaximumValuePolicyParameterizedFling(nn.Module, Policy):
                     value_maps = {'fling': self.random_value_map()}
                 else:
                     value_maps, fling_params = self.value_net(kp_stack, last_action, last_fling)
-                    value_maps = value_maps.cpu().squeeze()
+                    value_maps = value_maps.squeeze()
                     fling_params = fling_params.cpu().squeeze().numpy()
-                    value_maps_2 = run_fixed_net_inference(transformed_obs).cpu().squeeze()
-                    value_maps = (value_maps * (0.5 + 0.5 * (self.value_flingbot_weight)) +
-                                  value_maps_2 * (0.5 + 0.5 * (1 - self.value_flingbot_weight))
-                                 )
+                    value_maps_orig = run_fixed_net_inference(transformed_obs).squeeze()
+
+                    value_maps = (value_maps_orig * (0.5 + 0.5 * (self.value_flingbot_weight)) +
+                                  value_maps * (0.5 + 0.5 * (1 - self.value_flingbot_weight))
+                                 ).cpu()
                     value_maps = {'fling' : value_maps}
 
             if self.should_explore_action():
