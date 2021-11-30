@@ -4,6 +4,8 @@ import h5py
 from tqdm import tqdm
 import numpy as np
 
+from environment.new_env_utils import *
+
 REWARDS_MEAN = 0.0029411377084902638
 REWARDS_STD = 0.011524952525922203
 REWARDS_MAX = 0.20572495126190674
@@ -14,7 +16,7 @@ class GraspKeypointDataset(torch.utils.data.Dataset):
     def __init__(self,
                  hdf5_path: str,
                  use_normalized_coverage=True,
-                 num_keypoints = 20,
+                 num_keypoints = 30,
                  **kwargs):
         self.hdf5_path = hdf5_path
         self.use_normalized_coverage = use_normalized_coverage
@@ -65,24 +67,34 @@ class GraspKeypointDataset(torch.utils.data.Dataset):
             state = group['state']
             state_prev = group_prev['state']
 
-            idxr = np.random.randint(0, state.shape[0], self.num_keypoints)
-            kp      = torch.tensor(np.array(state)[idxr])
-            kp_prev = torch.tensor(np.array(state_prev)[idxr])
+            kp_prev, kp = pick_random_keypoints(np.array(state_prev), np.array(state))
+            kp_stack = make_rotated_scaled_keypoints(kp_prev, kp, group.attrs['rotation'], group.attrs['scale'])
 
             action_prev = torch.tensor(group_prev['actions']).bool()
 
+            fling_prev = np.array([
+                    group_prev.attrs['fling_height'],
+                    group_prev.attrs['fling_speed'],
+                    group_prev.attrs['fling_lower_speed'],
+                    group_prev.attrs['fling_end_slack']
+            ])
+            fling_this = np.array([
+                    group.attrs['fling_height'],
+                    group.attrs['fling_speed'],
+                    group.attrs['fling_lower_speed'],
+                    group.attrs['fling_end_slack']
+            ])
+
             obs = (torch.tensor(group['observations']),
-                    kp,
-                    kp_prev,
-                    action_prev
+                    kp_stack,
+                    action_prev,
+                    fling_prev,
+                    group.attrs['scale']
                   )
 
             action = (
                 torch.tensor(group['actions']).bool(),
-                group.attrs['fling_height'],
-                group.attrs['fling_speed'],
-                group.attrs['fling_lower_speed'],
-                group.attrs['fling_end_slack'],
+                fling_this
             )
 
             reward = torch.tensor(reward).float()

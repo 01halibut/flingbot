@@ -1,6 +1,6 @@
 from argparse import ArgumentParser
 from environment import SimEnv, TaskLoader
-from learning.nets import MaximumValuePolicy
+from learning.keypoint_net import MaximumValuePolicyParameterizedFling
 from learning.utils import GraspDataset
 from learning.graspKeypointDataset import GraspKeypointDataset
 from environment.utils import plot_before_after
@@ -99,7 +99,8 @@ def seed_all(seed):
 
 
 def setup_network(args):
-    policy = MaximumValuePolicy(**vars(args))
+    policy = MaximumValuePolicyParameterizedFling(**vars(args))
+    policy.cuda()
     optimizer = torch.optim.Adam(
         policy.parameters(), lr=args.lr,
         weight_decay=args.weight_decay)

@@ -11,6 +11,8 @@ from .utils import (
 import torch
 from .exceptions import MoveJointsException
 from learning.nets import prepare_image
+from environment import new_env_utils
+from environment.new_env_utils import make_rotated_scaled_keypoint_grid, pick_random_keypoints
 from typing import List, Callable
 from itertools import product
 from environment.flex_utils import (
@@ -49,12 +51,10 @@ class SimEnv:
                  parallelize_prepare_image=False,
                  gui=False,
                  grasp_height=0.02,
-                 fling_speed=6e-3,
                  episode_length=10,
                  render_dim=400,
                  particle_radius=0.00625,
                  render_engine='opengl',
-                 n_keypoints=20,
                  **kwargs):
         # environment state variables
         self.grasp_states = [False, False]
@@ -85,7 +85,6 @@ class SimEnv:
         self.pix_drag_dist = pix_drag_dist
         self.pix_place_dist = pix_place_dist
         self.stretchdrag_dist = stretchdrag_dist
-        self.fling_speed = fling_speed
         self.default_speed = 1e-2
         self.fixed_fling_height = fixed_fling_height
 
@@ -116,8 +115,9 @@ class SimEnv:
             'place': self.pick_and_place_primitive
         }
 
-        # keypoints
-        self.n_keypoints = n_keypoints
+        # buffer
+        self.last_action = None
+        self.last_fling = None
 
     def step_simulation(self):
         pyflex.step()
@@ -263,22 +263,31 @@ class SimEnv:
         # TODO can probably refactor so args to primitives have better variable names
         return retval
 
-    def fling_primitive(self, dist, fling_height, fling_speed):
-        fling_speed = np.random.uniform(1e-3, 1e-2)
-        fling_height = np.random.uniform(0.5, 1) * fling_height
+    def fling_primitive(self, dist, fling_height, fling_speed, fling_lower_speed, fling_end_slack):
         fling_start = -0.2
         fling_end = 0.2
         fling_tail_delta = 0.05
-        fling_lower_speed = np.random.uniform(1e-3, 2e-2)
         fling_tail_speed = 0.5 * fling_lower_speed
         fling_end_height = 2 * self.grasp_height
-        fling_end_slack = np.random.uniform(0.8, 1)
+
+        fling_height = np.clip(fling_height, *new_env_utils.FLING_HEIGHT_RANGE)
+        fling_speed = np.clip(fling_speed, *new_env_utils.FLING_SPEED_RANGE)
+        fling_lower_speed = np.clip(fling_lower_speed, *new_env_utils.FLING_LOWER_SPEED_RANGE)
+        fling_end_slack = np.clip(fling_end_slack, *new_env_utils.FLING_END_SLACK_RANGE)
 
         self.episode_memory.add_value('fling_height', fling_height)
         self.episode_memory.add_value('fling_speed', fling_speed)
         self.episode_memory.add_value('fling_lower_speed', fling_lower_speed)
         self.episode_memory.add_value('fling_sep_dist', dist)
         self.episode_memory.add_value('fling_end_slack', fling_end_slack)
+
+
+        self.last_fling = torch.tensor(np.array([
+            fling_speed,
+            fling_height,
+            fling_lower_speed,
+            fling_end_slack
+        ]))
         # fling
         self.movep([[dist/2, fling_height, fling_start],
                     [-dist/2, fling_height, fling_start]], speed=fling_speed)
@@ -303,7 +312,9 @@ class SimEnv:
     def pick_and_fling_primitive(
             self, p1, p2,
             p1_grasp_cloth: bool,
-            p2_grasp_cloth: bool):
+            p2_grasp_cloth: bool,
+            fling_height, fling_speed, fling_lower_speed, fling_end_slack
+            ):
         if not (p1_grasp_cloth or p2_grasp_cloth):
             # both points not on cloth
             return
@@ -332,10 +343,14 @@ class SimEnv:
                 grasp_dist=dist, fling_height=0.3)
         else:
             fling_height = self.fixed_fling_height
+
         self.fling_primitive(
             dist=dist,
             fling_height=fling_height,
-            fling_speed=self.fling_speed)
+            fling_speed=fling_speed,
+            fling_lower_speed=fling_lower_speed,
+            fling_end_slack=fling_end_slack
+            )
 
     def pick_and_drag_primitive(
             self, p1, p2,
@@ -496,17 +511,27 @@ class SimEnv:
             # if didn't really move cloth then end early
             self.terminate = True
 
-    def step(self, value_maps):
+    def step(self, action_parameterization):
+        prev_preaction = self.preaction_positions
         # Log stats before perform actions
         self.preaction()
+
+        value_maps, fling_params = action_parameterization
 
         prev_coverage = self.compute_coverage()
         self.episode_memory.add_value(
             key='preaction_coverage',
             value=float(prev_coverage))
-        action_primitive, action = self.get_max_value_valid_action(value_maps)
+        action_primitive, action, action_map, idx = self.get_max_value_valid_action(value_maps)
+
+        fling_height, fling_speed, fling_lower_speed, fling_end_slack = fling_params[idx]
         if action_primitive is not None and action is not None:
-            self.action_handlers[action_primitive](**action)
+            self.action_handlers['fling'](**action,
+                fling_height=fling_height,
+                fling_speed=fling_speed,
+                fling_lower_speed=fling_lower_speed,
+                fling_end_slack=fling_end_slack
+            )
         self.postaction()
 
         self.episode_memory.add_post_state(
@@ -535,7 +560,27 @@ class SimEnv:
         self.transformed_obs = prepare_image(
             obs, self.get_transformations(), self.obs_dim,
             parallelize=self.parallelize_prepare_image)
-        return self.transformed_obs, self.ray_handle
+        
+        if self.last_action is not None:
+            kp_stack = make_rotated_scaled_keypoint_grid(
+                *pick_random_keypoints(self.preaction_positions, prev_preaction),
+                self.get_transformations()
+            )
+            obs = (
+                self.transformed_obs,
+                kp_stack,
+                self.last_action,
+                self.last_fling
+            )
+        else:
+            obs = (self.transformed_obs,
+                None,
+                None,
+                None,
+            )
+        
+        self.last_action = action_map
+        return obs, self.ray_handle
 
     def get_action_params(self, action_primitive, max_indices):
         x, y, z = max_indices
@@ -680,8 +725,8 @@ class SimEnv:
                           'pretransform_pixels',
                           'get_action_visualization_fn']:
                     del action_params[k]
-                return action_kwargs['action_primitive'], action_params
-        return None, None
+                return action_kwargs['action_primitive'], action_params, action_kwargs['action_mask'], indices[0]
+        return None, None, None, None
 
     def reset(self):
         self.episode_memory = Memory()
@@ -708,7 +753,18 @@ class SimEnv:
         self.transformed_obs = prepare_image(
             obs, self.get_transformations(), self.obs_dim,
             parallelize=self.parallelize_prepare_image)
-        return self.transformed_obs, self.ray_handle
+        
+        self.preaction_positions = None
+        self.last_action = None
+        self.last_fling = None
+
+        obs = (self.transformed_obs,
+            None,
+            None,
+            None,
+        )
+
+        return obs, self.ray_handle
 
     def render_cloth(self):
         if self.render_engine == 'blender':
