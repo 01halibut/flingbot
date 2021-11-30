@@ -75,6 +75,8 @@ class MaximumValuePolicyParameterizedFling(nn.Module, Policy):
                  action_expl_decay: float,
                  value_expl_prob: float,
                  value_expl_decay: float,
+                 value_flingbot_weight : float,
+                 value_flingbot_decay : float,
                  device=None,
                  **kwargs):
         super().__init__()
@@ -93,6 +95,10 @@ class MaximumValuePolicyParameterizedFling(nn.Module, Policy):
             torch.tensor(value_expl_prob), requires_grad=False)
         self.value_expl_decay = nn.parameter.Parameter(
             torch.tensor(value_expl_decay), requires_grad=False)
+        self.value_flingbot_weight = nn.parameter.Parameter(
+            torch.tensor(value_flingbot_weight), requires_grad=False)
+        self.value_flingbot_decay = nn.parameter.Parameter(
+            torch.tensor(value_flingbot_decay), requires_grad=False)
 
         # base value net loaded from flingbot base
         # self.base_value_net = SpatialValueNet(device=self.device, **kwargs).to(self.device)
@@ -108,6 +114,7 @@ class MaximumValuePolicyParameterizedFling(nn.Module, Policy):
     def decay_exploration(self):
         self.action_expl_prob *= self.action_expl_decay
         self.value_expl_prob *= self.value_expl_decay
+        self.value_flingbot_weight *= self.value_flingbot_decay
 
     def random_value_map(self):
         return torch.rand(len(self.rotations) * len(self.scale_factors),
@@ -154,7 +161,9 @@ class MaximumValuePolicyParameterizedFling(nn.Module, Policy):
                     value_maps = value_maps.cpu().squeeze()
                     fling_params = fling_params.cpu().squeeze().numpy()
                     value_maps_2 = run_fixed_net_inference(transformed_obs).cpu().squeeze()
-                    value_maps = (value_maps + value_maps_2) / 2
+                    value_maps = (value_maps * (0.5 + 0.5 * (self.value_flingbot_weight)) +
+                                  value_maps_2 * (0.5 + 0.5 * (1 - self.value_flingbot_weight))
+                                 )
                     value_maps = {'fling' : value_maps}
 
             if self.should_explore_action():
@@ -171,7 +180,7 @@ class MaximumValuePolicyParameterizedFling(nn.Module, Policy):
             )
 
     def steps(self):
-        return self.value_net.steps()
+        return self.value_net.steps.cpu().detach().item()
 
     def forward(self, obs):
         return self.act(obs)

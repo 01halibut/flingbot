@@ -46,10 +46,12 @@ def config_parser(parser=None):
     parser.add_argument('--warmup', type=int, default=128)
     parser.add_argument('--save_ckpt', type=int, default=128)
     parser.add_argument('--dataset_path', type=str, default=None)
-    parser.add_argument('--action_expl_prob', type=float, default=0.0)
+    parser.add_argument('--action_expl_prob', type=float, default=0.1)
     parser.add_argument('--action_expl_decay', type=float, default=0.9995)
-    parser.add_argument('--value_expl_prob', type=float, default=0.0)
+    parser.add_argument('--value_expl_prob', type=float, default=0.1)
     parser.add_argument('--value_expl_decay', type=float, default=0.995)
+    parser.add_argument('--value_flingbot_weight', type=float, default=0.5)
+    parser.add_argument('--value_flingbot_decay', type=float, default=0.995)
     parser.add_argument('--obs_color_jitter',
                         action='store_true', default=True)
     parser.add_argument('--fixed_fling_height', type=float, default=-1)
@@ -123,6 +125,9 @@ def setup_network(args):
         print(
             f'\tExploration Probability: {policy.action_expl_prob.item():.4e}')
         print(f'\tExploration Decay: {policy.action_expl_decay.item():.4e}')
+
+        print(f'\Fling_orig weight: {policy.value_flingbot_weight.item():.4e}')
+        print(f'\Fling_orig Decay: {policy.value_flingbot_decay.item():.4e}')
 
     if args.eval:
         assert args.load is not None
