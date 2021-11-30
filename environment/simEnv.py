@@ -524,7 +524,14 @@ class SimEnv:
             value=float(prev_coverage))
         action_primitive, action, action_map, idx = self.get_max_value_valid_action(value_maps)
 
-        fling_height, fling_speed, fling_lower_speed, fling_end_slack = fling_params[idx]
+        if (type(fling_params) == np.ndarray and fling_params.size == 4):
+            fling_height, fling_speed, fling_lower_speed, fling_end_slack = fling_params
+        else:
+            assert fling_params.shape[1] == 3000
+            fling_params_slice = fling_params[idx]
+            idx2 = np.argmax(fling_params_slice)
+            fling_height, fling_speed, fling_lower_speed, fling_end_slack = \
+                new_env_utils.idx_to_fling_params(idx2)
         if action_primitive is not None and action is not None:
             self.action_handlers['fling'](**action,
                 fling_height=fling_height,

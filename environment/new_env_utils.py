@@ -8,7 +8,47 @@ FLING_SPEED_RANGE = (1e-3, 1e-2)
 FLING_LOWER_SPEED_RANGE = (1e-3, 2e-2)
 FLING_END_SLACK_RANGE = (0.8, 1)
 
+FLING_HEIGHT_STEPS = 10
+FLING_SPEED_STEPS = 10
+FLING_LOWER_SPEED_STEPS = 10
+FLING_END_SLACK_STEPS = 3
+
 N_KEYPOINTS = 30
+
+def __to_digit(num, min, max, steps):
+    return int(np.round((num - min) / (max - min) * (steps - 1)))
+
+def __from_digit(step, min, max, steps):
+    return (max - min) / (steps - 1) * (step) + min
+
+def fling_params_to_idx(fling_height, fling_speed, fling_lower_speed, fling_end_slack):
+    height_digit = __to_digit(fling_height, *FLING_HEIGHT_RANGE, FLING_HEIGHT_STEPS)
+    speed_digit = __to_digit(fling_speed, *FLING_SPEED_RANGE, FLING_SPEED_STEPS)
+    lower_speed_digit = __to_digit(fling_lower_speed, *FLING_LOWER_SPEED_RANGE, FLING_LOWER_SPEED_STEPS)
+    end_slack_digit = __to_digit(fling_end_slack, *FLING_END_SLACK_RANGE, FLING_END_SLACK_STEPS)
+
+    out = end_slack_digit
+    out = out * FLING_LOWER_SPEED_STEPS + lower_speed_digit
+    out = out * FLING_SPEED_STEPS + speed_digit
+    out = out * FLING_HEIGHT_STEPS + height_digit
+    return out
+
+
+def idx_to_fling_params(idx):
+    height_digit = idx % FLING_HEIGHT_STEPS
+    idx = idx // FLING_HEIGHT_STEPS
+    speed_digit = idx % FLING_SPEED_STEPS
+    idx = idx // FLING_SPEED_STEPS
+    lower_speed_digit = idx % FLING_LOWER_SPEED_STEPS
+    idx = idx // FLING_LOWER_SPEED_STEPS
+    end_slack_digit = idx
+
+    return (__from_digit(height_digit, *FLING_HEIGHT_RANGE, FLING_HEIGHT_STEPS),
+            __from_digit(speed_digit, *FLING_SPEED_RANGE, FLING_SPEED_STEPS),
+            __from_digit(lower_speed_digit, *FLING_LOWER_SPEED_RANGE, FLING_LOWER_SPEED_STEPS),
+            __from_digit(end_slack_digit, *FLING_END_SLACK_RANGE, FLING_END_SLACK_STEPS),
+    )
+
 
 def pick_random_keypoints(last_state, this_state, n_keypoints=N_KEYPOINTS):
     assert last_state.shape[0] == this_state.shape[0]

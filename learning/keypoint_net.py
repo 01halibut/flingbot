@@ -134,20 +134,20 @@ class MaximumValuePolicyParameterizedFling(nn.Module, Policy):
                 value_maps = {'fling': run_fixed_net_inference(transformed_obs).cpu().squeeze()
                             if not self.should_explore_value()
                             else self.random_value_map()}
-                fling_heights = [0.3] * n_transforms # 0.04 to 0.7
-                fling_speeds = [6e-3] * n_transforms # 1e-3 to 1e-2
-                fling_lower_speeds = [1e-2] * n_transforms # 1e-3 to 2e-2
-                fling_end_slacks = [1] * n_transforms # 0.8 to 1
-                fling_params = np.array([fling_heights, fling_speeds, fling_lower_speeds, fling_end_slacks]).T
+                fling_heights = 0.3 # 0.04 to 0.7
+                fling_speeds = 6e-3 # 1e-3 to 1e-2
+                fling_lower_speeds = 1e-2 # 1e-3 to 2e-2
+                fling_end_slacks = 1 # 0.8 to 1
+                fling_params = np.array([fling_heights, fling_speeds, fling_lower_speeds, fling_end_slacks])
             else:
                 assert kp_stack is not None
                 assert last_fling is not None
                 if self.should_explore_value():
-                    fling_heights = np.random.uniform(*FLING_HEIGHT_RANGE, size=n_transforms)
-                    fling_speeds = np.random.uniform(*FLING_SPEED_RANGE, size=n_transforms)
-                    fling_lower_speeds = np.random.uniform(*FLING_LOWER_SPEED_RANGE, size=n_transforms)
-                    fling_end_slacks = np.random.uniform(*FLING_END_SLACK_RANGE, size=n_transforms)
-                    fling_params = np.array([fling_heights, fling_speeds, fling_lower_speeds, fling_end_slacks]).T
+                    fling_heights = np.random.uniform(*FLING_HEIGHT_RANGE)
+                    fling_speeds = np.random.uniform(*FLING_SPEED_RANGE)
+                    fling_lower_speeds = np.random.uniform(*FLING_LOWER_SPEED_RANGE)
+                    fling_end_slacks = np.random.uniform(*FLING_END_SLACK_RANGE)
+                    fling_params = np.array([fling_heights, fling_speeds, fling_lower_speeds, fling_end_slacks])
                     value_maps = {'fling': self.random_value_map()}
                 else:
                     value_maps, fling_params = self.value_net(kp_stack, last_action, last_fling)
@@ -157,7 +157,7 @@ class MaximumValuePolicyParameterizedFling(nn.Module, Policy):
                     value_maps = (value_maps + value_maps_2) / 2
                     value_maps = {'fling' : value_maps}
             
-            print(fling_params[0])
+            print(fling_params[0], fling_params.shape, type(fling_params))
 
             if self.should_explore_action():
                 random_action, action_val_map = random.choice(
@@ -274,10 +274,10 @@ class KpValueNet(nn.Module):
         )
 
         self.out_gate2 = torch.nn.Sequential(
-            torch.nn.Linear(8192, 8),
-            torch.nn.BatchNorm1d(8),
+            torch.nn.Linear(8192, 3000),
+            torch.nn.BatchNorm1d(3000),
             torch.nn.ReLU(),
-            torch.nn.Linear(8, 4)
+            torch.nn.Linear(3000, 3000)
         )
 
     def forward(self,
