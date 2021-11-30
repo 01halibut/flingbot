@@ -12,26 +12,7 @@ from filelock import FileLock
 import pickle
 import os
 
-
-# def optimize(value_net_key, value_net, optimizer, loader,
-#              criterion, writer, num_updates):
-#     if loader is None or optimizer is None:
-#         return
-#     device = value_net.device
-#     for _, (obs, action_mask, label) in zip(range(num_updates), loader):
-#         value_pred_dense = value_net(obs.to(device, non_blocking=True))
-#         value_pred = torch.masked_select(
-#             value_pred_dense.squeeze(),
-#             action_mask.to(device, non_blocking=True))
-#         loss = criterion(value_pred, label.to(device, non_blocking=True))
-#         optimizer.zero_grad()
-#         loss.backward()
-#         optimizer.step()
-#         value_net.steps += 1
-#         writer.add_scalar(
-#             f'loss/{value_net_key}',
-#             loss.cpu().item(),
-#             global_step=value_net.steps)
+from environment import new_env_utils
 
 def optimize(value_net_key, value_net, optimizer, loader,
              criterion, writer, num_updates):
@@ -39,21 +20,46 @@ def optimize(value_net_key, value_net, optimizer, loader,
         return
     device = value_net.device
     for _, (obs, action_mask, label) in zip(range(num_updates), loader):
-        obs, kp, kp_prev, action_prev = obs
-        action_mask, fling_height, fling_speed, fling_lower_speed, fling_end_slack = action_mask
+        obs, kp_stack, action_prev, fling_prev, scale = obs
+
+        action_mask, fling_this = action_mask
+
+        label = label.to(device, non_blocking=True)
         
-        value_pred_dense = value_net(obs.to(device, non_blocking=True))
+        obs = obs.to(device, non_blocking=True)
+        kp_stack = kp_stack.to(device, non_blocking=True)
+        action_prev = action_prev.to(device, non_blocking=True)
+        fling_prev = fling_prev.to(device, non_blocking=True)
+        action_mask = action_mask.to(device, non_blocking=True)
+
+        value_pred_dense, fling_pred = value_net(kp_stack, action_prev, fling_prev)
         value_pred = torch.masked_select(
             value_pred_dense.squeeze(),
-            action_mask.to(device, non_blocking=True))
-        loss = criterion(value_pred, label.to(device, non_blocking=True))
+            action_mask
+            )
+        pred_idx = new_env_utils.fling_params_to_idx(*fling_this.T)
+        pred_idx = pred_idx.to(device)
+        fling_pred_value = torch.gather(fling_pred, 1, pred_idx[None, :]).flatten()
+
+        loss1 = criterion(value_pred, label)
+        loss2 = criterion(fling_pred_value, label)
+        loss = loss1 + loss2
+
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
         value_net.steps += 1
         writer.add_scalar(
-            f'loss/{value_net_key}',
+            f'loss/total/{value_net_key}',
             loss.cpu().item(),
+            global_step=value_net.steps)
+        writer.add_scalar(
+            f'loss/valuemap/{value_net_key}',
+            loss1.cpu().item(),
+            global_step=value_net.steps)
+        writer.add_scalar(
+            f'loss/flingmap/{value_net_key}',
+            loss2.cpu().item(),
             global_step=value_net.steps)
 
 
@@ -74,33 +80,30 @@ if __name__ == '__main__':
     dataset_size = get_dataset_size(dataset_path)
     i = dataset_size
     while(True):
-        with torch.no_grad():
-            ready_envs, observations, remaining_observations =\
-                step_env(
-                    all_envs=envs,
-                    ready_envs=ready_envs,
-                    ready_actions=policy.act(observations),
-                    remaining_observations=remaining_observations)
-            if i > args.warmup:
-                policy.decay_exploration()
+        # with torch.no_grad():
+        #     ready_envs, observations, remaining_observations =\
+        #         step_env(
+        #             all_envs=envs,
+        #             ready_envs=ready_envs,
+        #             ready_actions=policy.act(observations),
+        #             remaining_observations=remaining_observations)
+        #     if i > args.warmup:
+        #         policy.decay_exploration()
         if optimizer is not None and dataset_size > args.warmup:
             if i % args.update_frequency == 0:
                 policy.train()
                 with FileLock(dataset_path + ".lock"):
-                    for action_primitive, value_net in policy.value_nets.items():
-                        optimize(
-                            value_net_key=action_primitive,
-                            value_net=value_net,
-                            optimizer=optimizer,
-                            loader=get_loader(
-                                hdf5_path=dataset_path,
-                                filter_fn=lambda group:
-                                group.attrs['action_primitive']
-                                == action_primitive,
-                                **vars(args)),
-                            criterion=criterion,
-                            writer=writer,
-                            num_updates=args.batches_per_update)
+                    # for action_primitive, value_net in policy.value_nets.items():
+                    optimize(
+                        value_net_key='fling',
+                        value_net=policy.value_net,
+                        optimizer=optimizer,
+                        loader=get_loader(
+                            hdf5_path=dataset_path,
+                            **vars(args)),
+                        criterion=criterion,
+                        writer=writer,
+                        num_updates=args.batches_per_update)
                 policy.eval()
             checkpoint_paths = [f'{args.log}/latest_ckpt.pth']
             if i % args.save_ckpt == 0:

@@ -44,7 +44,7 @@ def config_parser(parser=None):
     parser.add_argument('--batches_per_update', type=int, default=1)
     parser.add_argument('--update_frequency', type=int, default=1)
     parser.add_argument('--warmup', type=int, default=128)
-    parser.add_argument('--save_ckpt', type=int, default=512)
+    parser.add_argument('--save_ckpt', type=int, default=128)
     parser.add_argument('--dataset_path', type=str, default=None)
     parser.add_argument('--action_expl_prob', type=float, default=0.0)
     parser.add_argument('--action_expl_decay', type=float, default=0.9995)

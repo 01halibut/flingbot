@@ -77,13 +77,13 @@ class GraspKeypointDataset(torch.utils.data.Dataset):
                     group_prev.attrs['fling_speed'],
                     group_prev.attrs['fling_lower_speed'],
                     group_prev.attrs['fling_end_slack']
-            ])
+            ], dtype=np.float32)
             fling_this = np.array([
                     group.attrs['fling_height'],
                     group.attrs['fling_speed'],
                     group.attrs['fling_lower_speed'],
                     group.attrs['fling_end_slack']
-            ])
+            ], dtype=np.float32)
 
             obs = (torch.tensor(group['observations']),
                     kp_stack,

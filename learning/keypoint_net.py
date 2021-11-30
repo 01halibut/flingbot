@@ -156,8 +156,6 @@ class MaximumValuePolicyParameterizedFling(nn.Module, Policy):
                     value_maps_2 = run_fixed_net_inference(transformed_obs).cpu().squeeze()
                     value_maps = (value_maps + value_maps_2) / 2
                     value_maps = {'fling' : value_maps}
-            
-            print(fling_params[0], fling_params.shape, type(fling_params))
 
             if self.should_explore_action():
                 random_action, action_val_map = random.choice(
@@ -173,7 +171,7 @@ class MaximumValuePolicyParameterizedFling(nn.Module, Policy):
             )
 
     def steps(self):
-        return sum([net.steps for net in self.value_nets.values()])
+        return self.value_net.steps()
 
     def forward(self, obs):
         return self.act(obs)
@@ -216,7 +214,7 @@ class SelfAttention(nn.Module):
 
 
 class KpValueNet(nn.Module):
-    def __init__(self, n_keypoints, device='cuda'):
+    def __init__(self, n_keypoints, device='cuda', steps=0):
         super().__init__()
 
         self.n_keypoints = n_keypoints
@@ -279,6 +277,10 @@ class KpValueNet(nn.Module):
             torch.nn.ReLU(),
             torch.nn.Linear(3000, 3000)
         )
+
+        
+        self.steps = nn.parameter.Parameter(
+            torch.tensor(steps), requires_grad=False)
 
     def forward(self,
                 kp_stack,

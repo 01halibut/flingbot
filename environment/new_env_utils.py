@@ -16,7 +16,10 @@ FLING_END_SLACK_STEPS = 3
 N_KEYPOINTS = 30
 
 def __to_digit(num, min, max, steps):
-    return int(np.round((num - min) / (max - min) * (steps - 1)))
+    out = np.round((num - min) / (max - min) * (steps - 1))
+    if type(out) == np.ndarray or type(out) == torch.Tensor:
+        return torch.tensor(out, dtype=torch.int64)
+    return int(out)
 
 def __from_digit(step, min, max, steps):
     return (max - min) / (steps - 1) * (step) + min
@@ -64,10 +67,12 @@ def make_rotated_scaled_keypoints(kp_this, kp_last, rotation, scale):
         [cos, -sin],
         [sin, cos]
     ])
-    kp_this = torch.tensor(np.dot(r_m, kp_this.T).T) * scale
-    kp_last = torch.tensor(np.dot(r_m, kp_last.T).T) * scale
+    kp_this = np.dot(r_m, kp_this.T).T.astype(np.float32)
+    kp_last = np.dot(r_m, kp_last.T).T.astype(np.float32)
+
+    kp_this = torch.tensor(kp_this) * scale
+    kp_last = torch.tensor(kp_last) * scale
     kp_stack = torch.cat((kp_this, kp_last), axis=-1)
-    print(kp_this.shape, kp_last.shape, kp_stack.shape)
     return torch.tensor(kp_stack)
 
 make_rotated_scaled_keypoints_async = ray.remote(make_rotated_scaled_keypoints)
