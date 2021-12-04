@@ -32,18 +32,20 @@ def optimize(value_net_key, value_net, optimizer, loader,
         fling_prev = fling_prev.to(device, non_blocking=True)
         action_mask = action_mask.to(device, non_blocking=True)
 
-        value_pred_dense, fling_pred = value_net(kp_stack, action_prev, fling_prev)
-        value_pred = torch.masked_select(
-            value_pred_dense.squeeze(),
-            action_mask
-            )
+        # value_pred_dense, fling_pred = value_net(kp_stack, action_prev, fling_prev)
+        _, fling_pred = value_net(kp_stack, action_prev, fling_prev)
+        # value_pred = torch.masked_select(
+        #     value_pred_dense.squeeze(),
+        #     action_mask
+        #     )
         pred_idx = new_env_utils.fling_params_to_idx(*fling_this.T)
         pred_idx = pred_idx.to(device)
         fling_pred_value = torch.gather(fling_pred, 1, pred_idx[None, :]).flatten()
 
-        loss1 = criterion(value_pred, label)
+        # loss1 = criterion(value_pred, label)
         loss2 = criterion(fling_pred_value, label)
-        loss = loss1 + loss2
+        # loss = loss1 + loss2
+        loss = loss2
 
         optimizer.zero_grad()
         loss.backward()

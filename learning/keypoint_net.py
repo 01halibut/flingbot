@@ -162,10 +162,12 @@ class MaximumValuePolicyParameterizedFling(nn.Module, Policy):
                     fling_params = fling_params.cpu().squeeze().numpy()
                     value_maps_orig = run_fixed_net_inference(transformed_obs).squeeze()
 
-                    value_maps = (value_maps_orig * (0.5 + 0.5 * (self.value_flingbot_weight)) +
-                                  value_maps * (0.5 + 0.5 * (1 - self.value_flingbot_weight))
-                                 ).cpu()
-                    value_maps = {'fling' : value_maps}
+                    value_maps = value_maps_orig
+
+                    # value_maps = (value_maps_orig * (0.5 + 0.5 * (self.value_flingbot_weight)) +
+                    #               value_maps * (0.5 + 0.5 * (1 - self.value_flingbot_weight))
+                    #              ).cpu()
+                    # value_maps = {'fling' : value_maps}
 
             if self.should_explore_action():
                 random_action, action_val_map = random.choice(
@@ -313,9 +315,9 @@ class KpValueNet(nn.Module):
 
         full_embed = torch.cat((kp_e, action_e, fling_e), dim=1)
 
-        out1 = self.out_gate1(full_embed)
+        # out1 = self.out_gate1(full_embed)
         out2 = self.out_gate2(full_embed)
 
-        return out1, out2
+        return None, out2
 
         
