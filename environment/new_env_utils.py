@@ -17,8 +17,10 @@ N_KEYPOINTS = 30
 
 def __to_digit(num, min, max, steps):
     out = np.round((num - min) / (max - min) * (steps - 1))
-    if type(out) == np.ndarray or type(out) == torch.Tensor:
-        return torch.tensor(out, dtype=torch.int64)
+    if type(out) ==  np.ndarray:
+        out = torch.Tensor(out)
+    if type(out) == torch.Tensor:
+        return out.to(torch.int64)
     return int(out)
 
 def __from_digit(step, min, max, steps):
